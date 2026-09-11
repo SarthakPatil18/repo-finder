@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   ExternalLink,
@@ -37,6 +37,44 @@ export default function HomePage() {
   const [customToken, setCustomToken] = useState("");
   const [geminiKey, setGeminiKey] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+
+  // Restore saved keys from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedToken = localStorage.getItem("github_token");
+      if (savedToken) setCustomToken(savedToken);
+      const savedGemini = localStorage.getItem("gemini_api_key");
+      if (savedGemini) setGeminiKey(savedGemini);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleTokenChange = (val: string) => {
+    setCustomToken(val);
+    try {
+      if (val.trim()) {
+        localStorage.setItem("github_token", val.trim());
+      } else {
+        localStorage.removeItem("github_token");
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleGeminiKeyChange = (val: string) => {
+    setGeminiKey(val);
+    try {
+      if (val.trim()) {
+        localStorage.setItem("gemini_api_key", val.trim());
+      } else {
+        localStorage.removeItem("gemini_api_key");
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   // Tab navigation: [Repositories] [Features] [Comparison] (Section 17)
   const [activeTab, setActiveTab] = useState<"repositories" | "features" | "comparison">(
@@ -347,7 +385,7 @@ export default function HomePage() {
                   type="password"
                   placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
                   value={customToken}
-                  onChange={(e) => setCustomToken(e.target.value)}
+                  onChange={(e) => handleTokenChange(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-xs text-zinc-900 focus:outline-none focus:border-black font-mono shadow-2xs"
                 />
               </div>
@@ -364,7 +402,7 @@ export default function HomePage() {
                   type="password"
                   placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxx"
                   value={geminiKey}
-                  onChange={(e) => setGeminiKey(e.target.value)}
+                  onChange={(e) => handleGeminiKeyChange(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-xs text-zinc-900 focus:outline-none focus:border-black font-mono shadow-2xs"
                 />
               </div>
@@ -439,6 +477,16 @@ export default function HomePage() {
               <p className="text-xs text-red-700 mt-1 leading-relaxed">
                 {errorMessage}
               </p>
+              {errorMessage.toLowerCase().includes("rate limit") && (
+                <button
+                  type="button"
+                  onClick={() => setShowSettings(true)}
+                  className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-900 hover:bg-black text-white text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                >
+                  <Settings className="w-3.5 h-3.5" />
+                  <span>Configure GitHub Token in Settings</span>
+                </button>
+              )}
             </div>
           </div>
         )}

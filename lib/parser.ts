@@ -10,32 +10,49 @@ export function parseGitHubQuery(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) return "";
 
-  // Check if it's a URL
+  // Normalize URL with or without protocol
+  let parsedUrl: URL | null = null;
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
     try {
-      const url = new URL(trimmed);
-      if (url.hostname === "github.com" || url.hostname.endsWith(".github.com")) {
-        // Look for 'q' parameter
-        const q = url.searchParams.get("q");
-        if (q !== null && q.trim()) {
-          return q.trim();
-        }
-      }
+      parsedUrl = new URL(trimmed);
     } catch {
-      // If parsing fails as URL, fallback to raw input
+      // Fallback to raw input
+    }
+  } else if (trimmed.startsWith("github.com/")) {
+    try {
+      parsedUrl = new URL(`https://${trimmed}`);
+    } catch {
+      // Fallback to raw input
     }
   }
 
-  // Handle case where user pasted "github.com/search?q=..." without protocol
-  if (trimmed.startsWith("github.com/search") || trimmed.includes("github.com/search?")) {
-    try {
-      const url = new URL(`https://${trimmed.replace(/^https?:\/\//, "")}`);
-      const q = url.searchParams.get("q");
-      if (q !== null && q.trim()) {
-        return q.trim();
-      }
-    } catch {
-      // Fallback
+  if (
+    parsedUrl &&
+    (parsedUrl.hostname === "github.com" || parsedUrl.hostname.endsWith(".github.com"))
+  ) {
+    // 1. Look for 'q' parameter in search URLs
+    const q = parsedUrl.searchParams.get("q");
+    if (q !== null && q.trim()) {
+      return q.trim();
+    }
+
+    // 2. Check if user pasted a direct repository URL (e.g. https://github.com/owner/repo)
+    const pathParts = parsedUrl.pathname.split("/").filter(Boolean);
+    const reserved = new Set([
+      "search",
+      "settings",
+      "features",
+      "explore",
+      "topics",
+      "marketplace",
+      "pricing",
+      "organizations",
+      "login",
+      "join",
+    ]);
+
+    if (pathParts.length >= 2 && !reserved.has(pathParts[0].toLowerCase())) {
+      return `repo:${pathParts[0]}/${pathParts[1]}`;
     }
   }
 

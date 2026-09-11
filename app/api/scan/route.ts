@@ -3,6 +3,49 @@ import { parseGitHubQuery } from "@/lib/parser";
 import { runScan } from "@/lib/scanner";
 import { ScanEvent } from "@/lib/types";
 
+import fs from "fs";
+import path from "path";
+
+function getEffectiveToken(clientToken?: string): string {
+  if (clientToken && clientToken.trim()) return clientToken.trim();
+  if (process.env.GITHUB_TOKEN && process.env.GITHUB_TOKEN.trim()) {
+    return process.env.GITHUB_TOKEN.trim();
+  }
+  try {
+    const envPath = path.join(process.cwd(), ".env.local");
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      const match = content.match(/^GITHUB_TOKEN=(.*)$/m);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
+function getEffectiveGeminiKey(clientKey?: string): string {
+  if (clientKey && clientKey.trim()) return clientKey.trim();
+  if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim()) {
+    return process.env.GEMINI_API_KEY.trim();
+  }
+  try {
+    const envPath = path.join(process.cwd(), ".env.local");
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, "utf-8");
+      const match = content.match(/^GEMINI_API_KEY=(.*)$/m);
+      if (match && match[1]) {
+        return match[1].trim();
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -22,9 +65,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Server token takes precedence if set, otherwise client token
-  const token = (process.env.GITHUB_TOKEN || clientToken || "").trim();
-  const geminiKey = (process.env.GEMINI_API_KEY || clientGeminiKey || "").trim();
+  const token = getEffectiveToken(clientToken);
+  const geminiKey = getEffectiveGeminiKey(clientGeminiKey);
 
   const encoder = new TextEncoder();
 
