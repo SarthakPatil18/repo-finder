@@ -1,9 +1,22 @@
-import { GitHubRepoItem, DeploymentResult, ScanEvent } from "./types";
-import { sanitizeCandidateUrl, verifyDeploymentUrl, isKnownHostingProvider } from "./verifier";
+import {
+  GitHubRepoItem,
+  DeploymentResult,
+  ScanEvent,
+  RepoAnalysisResult,
+} from "./types";
+import {
+  sanitizeCandidateUrl,
+  verifyDeploymentUrl,
+  isKnownHostingProvider,
+} from "./verifier";
+import { analyzeRepository } from "./analyzer";
+import { enhanceWithLlm } from "./llm";
+import { buildFeatureLandscape } from "./normalizer";
 
 interface ScanOptions {
   query: string;
   token?: string;
+  geminiKey?: string;
   maxRepos?: number;
   onEvent: (event: ScanEvent) => void;
   signal?: AbortSignal;
@@ -112,7 +125,7 @@ export async function findCandidateUrlsForRepo(
   const repoName = repo.name;
   const headers = getGitHubHeaders(token);
 
-  // 1. Repo homepage (from search results directly!)
+  // 1. Repo homepage
   if (repo.homepage) {
     const sanitized = sanitizeCandidateUrl(repo.homepage);
     if (sanitized) candidates.add(sanitized);
@@ -193,7 +206,6 @@ export async function findCandidateUrlsForRepo(
             const sanitized = sanitizeCandidateUrl(linkHref);
             if (sanitized) candidates.add(sanitized);
           } else {
-            // Check if link href itself has hosting provider
             try {
               const urlObj = new URL(linkHref);
               if (isKnownHostingProvider(urlObj.hostname)) {
@@ -239,15 +251,15 @@ export async function findCandidateUrlsForRepo(
 }
 
 /**
- * Process a single repository: find candidates, verify them, and return results.
+ * Process a single repository for deployment verification.
  */
-export async function scanSingleRepository(
+export async function scanDeploymentsForRepo(
   repo: GitHubRepoItem,
   token?: string,
   signal?: AbortSignal
-): Promise<DeploymentResult | null> {
+): Promise<string[]> {
   const candidates = await findCandidateUrlsForRepo(repo, token, signal);
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) return [];
 
   const validDeployments: string[] = [];
   const seenDeployments = new Set<string>();
@@ -261,21 +273,18 @@ export async function scanSingleRepository(
     }
   }
 
-  if (validDeployments.length === 0) return null;
-
-  return {
-    repoUrl: repo.html_url,
-    repoName: repo.full_name,
-    description: repo.description || undefined,
-    deployments: validDeployments,
-  };
+  return validDeployments;
 }
 
 /**
- * Concurrency worker pool scanner
+ * Full Scanner and Feature Discovery pipeline:
+ * 1. Search repositories
+ * 2. Concurrently find & verify deployments
+ * 3. Concurrently analyze repository features, entities, APIs, tech stack
+ * 4. Build global feature landscape & comparison matrix
  */
 export async function runScan(options: ScanOptions): Promise<void> {
-  const { query, token, maxRepos = 1000, onEvent, signal } = options;
+  const { query, token, geminiKey, maxRepos = 1000, onEvent, signal } = options;
 
   let searchData: { items: GitHubRepoItem[]; totalCount: number };
   try {
@@ -303,6 +312,7 @@ export async function runScan(options: ScanOptions): Promise<void> {
       data: {
         totalChecked: 0,
         totalFound: 0,
+        totalAnalyzed: 0,
       },
     });
     return;
@@ -310,7 +320,8 @@ export async function runScan(options: ScanOptions): Promise<void> {
 
   let checkedCount = 0;
   let foundCount = 0;
-  const concurrency = 8; // Controlled safe concurrency
+  const analyzedRepos: RepoAnalysisResult[] = [];
+  const concurrency = 6;
   let currentIndex = 0;
 
   async function worker() {
@@ -329,17 +340,53 @@ export async function runScan(options: ScanOptions): Promise<void> {
         },
       });
 
+      let validDeployments: string[] = [];
       try {
-        const result = await scanSingleRepository(repo, token, signal);
-        if (result && result.deployments.length > 0) {
+        // Step 1: Scan deployment URLs
+        validDeployments = await scanDeploymentsForRepo(repo, token, signal);
+        if (validDeployments.length > 0) {
           foundCount++;
+          const depResult: DeploymentResult = {
+            repoUrl: repo.html_url,
+            repoName: repo.full_name,
+            description: repo.description || undefined,
+            deployments: validDeployments,
+          };
           onEvent({
             type: "found",
-            data: result,
+            data: depResult,
           });
         }
       } catch {
-        // Continue scanning remaining repositories on error
+        // Ignore deployment check error, continue to feature analysis
+      }
+
+      // Step 2: Deep Feature Analysis
+      try {
+        onEvent({
+          type: "analyzing",
+          data: {
+            repoName: repo.full_name,
+            checked: analyzedRepos.length,
+            total: items.length,
+          },
+        });
+
+        let analysis = await analyzeRepository(repo, validDeployments, token, signal);
+
+        // Step 3: Optional LLM Enhancement
+        if (geminiKey && geminiKey.trim()) {
+          analysis = await enhanceWithLlm(analysis, geminiKey, signal);
+        }
+
+        analyzedRepos.push(analysis);
+
+        onEvent({
+          type: "analyzed",
+          data: analysis,
+        });
+      } catch {
+        // Continue processing remaining repos
       } finally {
         checkedCount++;
         onEvent({
@@ -354,14 +401,27 @@ export async function runScan(options: ScanOptions): Promise<void> {
     }
   }
 
-  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  const workers = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    () => worker()
+  );
   await Promise.all(workers);
+
+  // Step 4: Aggregate Feature Landscape & Matrix
+  if (analyzedRepos.length > 0) {
+    const landscape = buildFeatureLandscape(analyzedRepos);
+    onEvent({
+      type: "landscape",
+      data: landscape,
+    });
+  }
 
   onEvent({
     type: "done",
     data: {
       totalChecked: checkedCount,
       totalFound: foundCount,
+      totalAnalyzed: analyzedRepos.length,
     },
   });
 }

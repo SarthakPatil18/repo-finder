@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const rawInput = body.query || body.searchUrl || "";
   const clientToken = body.token || "";
+  const clientGeminiKey = body.geminiKey || "";
   const maxRepos = typeof body.maxRepos === "number" ? body.maxRepos : 1000;
 
   const parsedQuery = parseGitHubQuery(rawInput);
@@ -23,6 +24,7 @@ export async function POST(req: NextRequest) {
 
   // Server token takes precedence if set, otherwise client token
   const token = (process.env.GITHUB_TOKEN || clientToken || "").trim();
+  const geminiKey = (process.env.GEMINI_API_KEY || clientGeminiKey || "").trim();
 
   const encoder = new TextEncoder();
 
@@ -37,6 +39,7 @@ export async function POST(req: NextRequest) {
         await runScan({
           query: parsedQuery,
           token: token || undefined,
+          geminiKey: geminiKey || undefined,
           maxRepos,
           onEvent: sendEvent,
           signal: req.signal,

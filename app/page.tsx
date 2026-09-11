@@ -12,34 +12,62 @@ import {
   Square,
   Key,
   Globe,
+  Sparkles,
+  Layers,
+  Table2,
+  Cpu,
+  Database,
+  Eye,
+  Settings,
 } from "lucide-react";
-import { DeploymentResult, ScanEvent } from "@/lib/types";
+import {
+  DeploymentResult,
+  ScanEvent,
+  RepoAnalysisResult,
+  FeatureLandscape,
+} from "@/lib/types";
+import { RepoDetailModal } from "./components/RepoDetailModal";
+import { FeaturesView } from "./components/FeaturesView";
+import { ComparisonMatrixView } from "./components/ComparisonMatrixView";
 
 export default function HomePage() {
   const [queryInput, setQueryInput] = useState(
     "https://github.com/search?q=mplads&type=repositories"
   );
   const [customToken, setCustomToken] = useState("");
-  const [showTokenSettings, setShowTokenSettings] = useState(false);
+  const [geminiKey, setGeminiKey] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Tab navigation: [Repositories] [Features] [Comparison] (Section 17)
+  const [activeTab, setActiveTab] = useState<"repositories" | "features" | "comparison">(
+    "repositories"
+  );
 
   const [isScanning, setIsScanning] = useState(false);
-  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "finished" | "error">("idle");
+  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "finished" | "error">(
+    "idle"
+  );
   const [currentQuery, setCurrentQuery] = useState("");
   const [scannedCount, setScannedCount] = useState(0);
   const [totalToScan, setTotalToScan] = useState(0);
   const [currentRepo, setCurrentRepo] = useState("");
   const [results, setResults] = useState<DeploymentResult[]>([]);
+  const [analyzedRepos, setAnalyzedRepos] = useState<RepoAnalysisResult[]>([]);
+  const [landscape, setLandscape] = useState<FeatureLandscape | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
+  // Selected repo for detail modal (Section 16)
+  const [selectedRepoForModal, setSelectedRepoForModal] = useState<RepoAnalysisResult | null>(
+    null
+  );
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Clean helper to format displayed URL without https://
   function displayCleanUrl(url: string) {
     return url.replace(/^https?:\/\//, "").replace(/\/$/, "");
   }
 
-  // Copy to clipboard
   const handleCopy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -52,7 +80,6 @@ export default function HomePage() {
     }
   };
 
-  // Stop scanning
   const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -62,7 +89,6 @@ export default function HomePage() {
     setScanStatus("finished");
   };
 
-  // Start scan
   const handleStartScan = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!queryInput.trim() || isScanning) return;
@@ -70,6 +96,8 @@ export default function HomePage() {
     // Reset state
     setErrorMessage("");
     setResults([]);
+    setAnalyzedRepos([]);
+    setLandscape(null);
     setScannedCount(0);
     setTotalToScan(0);
     setCurrentRepo("");
@@ -87,6 +115,7 @@ export default function HomePage() {
         body: JSON.stringify({
           query: queryInput.trim(),
           token: customToken.trim() || undefined,
+          geminiKey: geminiKey.trim() || undefined,
         }),
         signal: controller.signal,
       });
@@ -110,7 +139,6 @@ export default function HomePage() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        // Keep unfinished trailing chunk in buffer
         buffer = lines.pop() || "";
 
         for (const line of lines) {
@@ -120,13 +148,12 @@ export default function HomePage() {
               const eventData: ScanEvent = JSON.parse(trimmed.slice(6));
               handleScanEvent(eventData);
             } catch {
-              // Ignore partial or malformed chunk
+              // Ignore partial chunk
             }
           }
         }
       }
 
-      // Final buffer flush
       if (buffer.trim().startsWith("data: ")) {
         try {
           const eventData: ScanEvent = JSON.parse(buffer.trim().slice(6));
@@ -168,6 +195,16 @@ export default function HomePage() {
           return [...prev, event.data];
         });
         break;
+      case "analyzed":
+        setAnalyzedRepos((prev) => {
+          const exists = prev.some((item) => item.repoUrl === event.data.repoUrl);
+          if (exists) return prev;
+          return [...prev, event.data];
+        });
+        break;
+      case "landscape":
+        setLandscape(event.data);
+        break;
       case "done":
         setScannedCount(event.data.totalChecked);
         setScanStatus("finished");
@@ -181,12 +218,10 @@ export default function HomePage() {
     }
   };
 
-  // CSV Export
-  const handleExportCsv = () => {
+  const handleExportDeploymentsCsv = () => {
     if (results.length === 0) return;
 
     const rows: string[] = ["Repository URL,Deployment URL"];
-
     for (const item of results) {
       for (const dep of item.deployments) {
         const safeRepo = `"${item.repoUrl.replace(/"/g, '""')}"`;
@@ -215,30 +250,30 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-white text-zinc-900 flex flex-col items-center">
       {/* Top Header */}
-      <header className="w-full border-b border-zinc-200 bg-white/90 backdrop-blur sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <header className="w-full border-b border-zinc-200 bg-white/95 backdrop-blur-xs sticky top-0 z-30">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-black text-white flex items-center justify-center shadow-xs">
+            <div className="w-9 h-9 rounded-xl bg-black text-white flex items-center justify-center shadow-xs">
               <Globe className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-base font-semibold tracking-tight text-zinc-950 flex items-center gap-2">
-                GitHub Deployment Finder
+              <h1 className="text-base font-bold tracking-tight text-zinc-950 flex items-center gap-2">
+                GitHub Deployment & Feature Discovery
               </h1>
               <p className="text-xs text-zinc-500">
-                Discover live websites and deployments from GitHub search
+                Automated live site finder, feature intelligence & landscape comparison
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowTokenSettings(!showTokenSettings)}
-              className="px-2.5 py-1.5 rounded-md border border-zinc-300 text-xs text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
-              title="Configure GitHub Token"
+              onClick={() => setShowSettings(!showSettings)}
+              className="px-2.5 py-1.5 rounded-lg border border-zinc-300 text-xs text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors flex items-center gap-1.5 font-medium cursor-pointer shadow-2xs"
+              title="Configure API Keys & Settings"
             >
-              <Key className="w-3.5 h-3.5 text-zinc-500" />
-              <span>Token</span>
+              <Settings className="w-3.5 h-3.5 text-zinc-500" />
+              <span>Settings</span>
             </button>
             <a
               href="https://github.com"
@@ -259,39 +294,65 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="w-full max-w-5xl px-4 sm:px-6 py-8 flex-1 flex flex-col">
-        {/* Token Drawer */}
-        {showTokenSettings && (
-          <div className="mb-6 p-4 rounded-xl border border-zinc-200 bg-zinc-50 text-sm shadow-sm animate-in fade-in">
-            <div className="flex items-center justify-between mb-2">
-              <label className="font-semibold text-zinc-900 flex items-center gap-2">
-                <Key className="w-4 h-4 text-black" />
-                GitHub Personal Access Token (Optional)
-              </label>
+      <main className="w-full max-w-6xl px-4 sm:px-6 py-7 flex-1 flex flex-col">
+        {/* Settings Drawer */}
+        {showSettings && (
+          <div className="mb-6 p-5 rounded-2xl border border-zinc-200 bg-zinc-50 text-sm shadow-sm animate-in fade-in space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-zinc-950 flex items-center gap-2">
+                <Settings className="w-4 h-4 text-black" />
+                Configuration & API Keys
+              </h2>
               <button
-                onClick={() => setShowTokenSettings(false)}
-                className="text-xs text-zinc-500 hover:text-black cursor-pointer"
+                onClick={() => setShowSettings(false)}
+                className="text-xs text-zinc-500 hover:text-black cursor-pointer font-medium"
               >
                 Close
               </button>
             </div>
-            <p className="text-xs text-zinc-600 mb-3">
-              Without a token, GitHub limits unauthenticated search requests to 10/min. Adding a token grants 30/min for search and 5,000/hr for repo endpoints. If you configured <code className="text-black bg-zinc-200 px-1 py-0.5 rounded font-mono font-medium">GITHUB_TOKEN</code> in your environment, it is used automatically.
-            </p>
-            <input
-              type="password"
-              placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-              value={customToken}
-              onChange={(e) => setCustomToken(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-sm text-zinc-900 focus:outline-none focus:border-black font-mono shadow-xs"
-            />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* GitHub Token */}
+              <div>
+                <label className="text-xs font-semibold text-zinc-800 block mb-1">
+                  GitHub Personal Access Token (Optional)
+                </label>
+                <p className="text-[11px] text-zinc-500 mb-2 leading-relaxed">
+                  Increases GitHub rate limit from 10 to 30 req/min for search and 5,000 req/hr for repository trees and contents.
+                </p>
+                <input
+                  type="password"
+                  placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                  value={customToken}
+                  onChange={(e) => setCustomToken(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-xs text-zinc-900 focus:outline-none focus:border-black font-mono shadow-2xs"
+                />
+              </div>
+
+              {/* Gemini API Key */}
+              <div>
+                <label className="text-xs font-semibold text-zinc-800 block mb-1">
+                  Google Gemini API Key (Optional)
+                </label>
+                <p className="text-[11px] text-zinc-500 mb-2 leading-relaxed">
+                  Enables optional LLM semantic analysis and high-level feature synthesis. Deterministic extraction operates seamlessly without it.
+                </p>
+                <input
+                  type="password"
+                  placeholder="AIzaSyxxxxxxxxxxxxxxxxxxxx"
+                  value={geminiKey}
+                  onChange={(e) => setGeminiKey(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-zinc-300 rounded-lg text-xs text-zinc-900 focus:outline-none focus:border-black font-mono shadow-2xs"
+                />
+              </div>
+            </div>
           </div>
         )}
 
         {/* Search Input Box */}
-        <section className="mb-8">
-          <form onSubmit={handleStartScan} className="flex flex-col gap-3">
-            <label className="text-sm font-medium text-zinc-800 flex items-center justify-between">
+        <section className="mb-6">
+          <form onSubmit={handleStartScan} className="flex flex-col gap-2.5">
+            <label className="text-xs font-semibold text-zinc-700 flex items-center justify-between">
               <span>Paste GitHub repository search URL or query:</span>
               <button
                 type="button"
@@ -300,7 +361,7 @@ export default function HomePage() {
                     "https://github.com/search?q=mplads&type=repositories"
                   )
                 }
-                className="text-xs text-black hover:underline font-medium cursor-pointer"
+                className="text-xs text-blue-600 hover:underline font-medium cursor-pointer"
               >
                 Example: mplads search
               </button>
@@ -317,7 +378,7 @@ export default function HomePage() {
                   onChange={(e) => setQueryInput(e.target.value)}
                   placeholder="https://github.com/search?q=mplads&type=repositories or 'mplads'"
                   disabled={isScanning}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-black transition-all shadow-xs disabled:bg-zinc-50 disabled:text-zinc-500"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-black transition-all shadow-xs disabled:bg-zinc-50 disabled:text-zinc-500 font-mono"
                 />
               </div>
 
@@ -326,7 +387,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={handleStop}
-                    className="px-5 py-2.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-sm font-medium transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                    className="px-5 py-2.5 rounded-xl bg-zinc-900 hover:bg-black text-white text-sm font-semibold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer shrink-0"
                   >
                     <Square className="w-4 h-4 fill-current" />
                     <span>Stop</span>
@@ -335,10 +396,10 @@ export default function HomePage() {
                   <button
                     type="submit"
                     disabled={!queryInput.trim()}
-                    className="px-6 py-2.5 rounded-lg bg-black hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-medium transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                    className="px-6 py-2.5 rounded-xl bg-black hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold transition-all shadow-xs flex items-center justify-center gap-2 cursor-pointer shrink-0"
                   >
                     <Search className="w-4 h-4" />
-                    <span>Find Deployments</span>
+                    <span>Scan & Analyze Repositories</span>
                   </button>
                 )}
               </div>
@@ -361,27 +422,25 @@ export default function HomePage() {
 
         {/* Status & Metrics Bar */}
         {(scanStatus === "scanning" || scanStatus === "finished") && (
-          <section className="mb-6 p-4 rounded-xl border border-zinc-200 bg-zinc-50 flex flex-col gap-3 shadow-xs">
+          <section className="mb-6 p-4 rounded-xl border border-zinc-200 bg-zinc-50/80 flex flex-col gap-3 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 {isScanning ? (
-                  <div className="flex items-center gap-2 text-zinc-950 font-semibold">
+                  <div className="flex items-center gap-2 text-zinc-950 font-semibold text-xs sm:text-sm">
                     <Loader2 className="w-4 h-4 animate-spin text-black" />
-                    <span>Scanning repositories...</span>
+                    <span>Scanning & analyzing repositories...</span>
                   </div>
                 ) : (
-                  <div className="text-zinc-900 font-semibold">
-                    Scan complete
+                  <div className="text-zinc-900 font-semibold text-xs sm:text-sm">
+                    Analysis complete
                   </div>
                 )}
 
                 <span className="text-zinc-300">|</span>
 
                 <div className="text-zinc-700 text-xs sm:text-sm">
-                  <span className="text-zinc-500">Repositories scanned: </span>
-                  <span className="font-semibold text-zinc-950">
-                    {scannedCount}
-                  </span>
+                  <span className="text-zinc-500">Repositories: </span>
+                  <span className="font-semibold text-zinc-950">{scannedCount}</span>
                   {totalToScan > 0 && (
                     <span className="text-zinc-500"> / {totalToScan}</span>
                   )}
@@ -390,25 +449,33 @@ export default function HomePage() {
                 <span className="text-zinc-300">|</span>
 
                 <div className="text-zinc-700 text-xs sm:text-sm">
-                  <span className="text-zinc-500">Deployments found: </span>
-                  <span className="font-semibold text-black">
+                  <span className="text-zinc-500">Deployments: </span>
+                  <span className="font-semibold text-emerald-700">
                     {totalDeploymentsCount}
+                  </span>
+                </div>
+
+                <span className="text-zinc-300">|</span>
+
+                <div className="text-zinc-700 text-xs sm:text-sm">
+                  <span className="text-zinc-500">Analyzed for Features: </span>
+                  <span className="font-semibold text-blue-700">
+                    {analyzedRepos.length}
                   </span>
                 </div>
               </div>
 
               {results.length > 0 && (
                 <button
-                  onClick={handleExportCsv}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-white hover:bg-zinc-100 text-zinc-900 border border-zinc-300 shadow-xs transition-colors self-start sm:self-auto cursor-pointer"
+                  onClick={handleExportDeploymentsCsv}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white hover:bg-zinc-100 text-zinc-900 border border-zinc-300 shadow-2xs transition-colors self-start sm:self-auto cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5 text-black" />
-                  <span>Export CSV</span>
+                  <span>Export Deployments CSV</span>
                 </button>
               )}
             </div>
 
-            {/* Scanning active progress bar */}
             {isScanning && totalToScan > 0 && (
               <div className="w-full">
                 <div className="w-full h-1.5 bg-zinc-200 rounded-full overflow-hidden">
@@ -424,7 +491,10 @@ export default function HomePage() {
                 </div>
                 {currentRepo && (
                   <p className="text-xs text-zinc-500 mt-1.5 truncate">
-                    Currently checking: <span className="text-zinc-900 font-mono">{currentRepo}</span>
+                    Currently inspecting:{" "}
+                    <span className="text-zinc-900 font-mono font-medium">
+                      {currentRepo}
+                    </span>
                   </p>
                 )}
               </div>
@@ -432,130 +502,254 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* Results Table Section */}
-        <section className="flex-1 flex flex-col">
-          {results.length > 0 ? (
-            <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-700 text-xs font-semibold uppercase tracking-wider">
-                      <th className="py-3.5 px-4 sm:px-6 w-1/2">Repository</th>
-                      <th className="py-3.5 px-4 sm:px-6 w-1/2">Deployment</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-200">
-                    {results.map((item) =>
-                      item.deployments.map((depUrl, depIdx) => (
-                        <tr
-                          key={`${item.repoUrl}-${depUrl}-${depIdx}`}
-                          className="hover:bg-zinc-50/80 transition-colors group"
-                        >
-                          {/* Repository URL Column */}
-                          <td className="py-4 px-4 sm:px-6 align-top">
-                            <div className="flex items-center gap-2">
-                              <a
-                                href={item.repoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-mono text-xs sm:text-sm font-medium text-zinc-900 hover:text-black hover:underline transition-colors flex items-center gap-1.5 break-all"
-                              >
-                                <span>{displayCleanUrl(item.repoUrl)}</span>
-                                <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-70 transition-opacity shrink-0 text-zinc-500" />
-                              </a>
-                            </div>
-                            {item.description && (
-                              <p className="text-xs text-zinc-500 mt-1 line-clamp-1 max-w-md">
-                                {item.description}
-                              </p>
-                            )}
-                          </td>
+        {/* Global Research Dashboard Tabs (Section 17) */}
+        {(scanStatus === "scanning" || scanStatus === "finished" || analyzedRepos.length > 0) && (
+          <div className="mb-6 border-b border-zinc-200 flex items-center justify-between gap-4">
+            <nav className="flex items-center gap-1 -mb-px">
+              <button
+                onClick={() => setActiveTab("repositories")}
+                className={`py-3 px-4 text-xs sm:text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+                  activeTab === "repositories"
+                    ? "border-black text-black"
+                    : "border-transparent text-zinc-500 hover:text-zinc-900 hover:border-zinc-300"
+                }`}
+              >
+                <Globe className="w-4 h-4" />
+                <span>Repositories</span>
+                <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-zinc-100 text-zinc-600 font-mono">
+                  {results.length}
+                </span>
+              </button>
 
-                          {/* Deployment URL Column */}
-                          <td className="py-4 px-4 sm:px-6 align-top">
-                            <div className="flex items-center justify-between gap-3">
-                              <a
-                                href={depUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="font-mono text-xs sm:text-sm font-medium text-black hover:underline transition-colors flex items-center gap-1.5 break-all"
-                              >
-                                <span>{displayCleanUrl(depUrl)}</span>
-                                <ExternalLink className="w-3.5 h-3.5 shrink-0 text-zinc-600" />
-                              </a>
+              <button
+                onClick={() => setActiveTab("features")}
+                className={`py-3 px-4 text-xs sm:text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+                  activeTab === "features"
+                    ? "border-black text-black"
+                    : "border-transparent text-zinc-500 hover:text-zinc-900 hover:border-zinc-300"
+                }`}
+              >
+                <Sparkles className="w-4 h-4 text-blue-600" />
+                <span>Features & Landscape</span>
+                {landscape && (
+                  <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-blue-50 text-blue-800 font-mono">
+                    {landscape.features.length}
+                  </span>
+                )}
+              </button>
 
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  onClick={() => handleCopy(depUrl)}
-                                  className="p-1.5 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-black transition-colors cursor-pointer border border-transparent hover:border-zinc-200"
-                                  title="Copy live URL"
+              <button
+                onClick={() => setActiveTab("comparison")}
+                className={`py-3 px-4 text-xs sm:text-sm font-semibold border-b-2 flex items-center gap-2 transition-colors cursor-pointer ${
+                  activeTab === "comparison"
+                    ? "border-black text-black"
+                    : "border-transparent text-zinc-500 hover:text-zinc-900 hover:border-zinc-300"
+                }`}
+              >
+                <Table2 className="w-4 h-4" />
+                <span>Cross-Repo Comparison</span>
+                {landscape && (
+                  <span className="ml-1 text-[11px] px-1.5 py-0.2 rounded-full bg-zinc-100 text-zinc-600 font-mono">
+                    {landscape.matrix.repos.length}
+                  </span>
+                )}
+              </button>
+            </nav>
+          </div>
+        )}
+
+        {/* Tab 1: Repositories View (Section 20: Keep Existing Deployment Feature + Enriched Summary) */}
+        {activeTab === "repositories" && (
+          <section className="flex-1 flex flex-col">
+            {results.length > 0 ? (
+              <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-700 text-xs font-semibold uppercase tracking-wider">
+                        <th className="py-3.5 px-4 sm:px-6 w-1/2">Repository</th>
+                        <th className="py-3.5 px-4 sm:px-6 w-1/2">Deployment</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-200">
+                      {results.map((item) => {
+                        const matchingAnalysis = analyzedRepos.find(
+                          (a) => a.repoUrl === item.repoUrl
+                        );
+
+                        return item.deployments.map((depUrl, depIdx) => (
+                          <tr
+                            key={`${item.repoUrl}-${depUrl}-${depIdx}`}
+                            className="hover:bg-zinc-50/80 transition-colors group"
+                          >
+                            {/* Repository URL Column */}
+                            <td className="py-4 px-4 sm:px-6 align-top">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <a
+                                  href={item.repoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-mono text-xs sm:text-sm font-medium text-zinc-900 hover:text-black hover:underline transition-colors flex items-center gap-1.5 break-all"
                                 >
-                                  {copiedUrl === depUrl ? (
-                                    <Check className="w-4 h-4 text-black" />
-                                  ) : (
-                                    <Copy className="w-4 h-4" />
+                                  <span>{displayCleanUrl(item.repoUrl)}</span>
+                                  <ExternalLink className="w-3.5 h-3.5 opacity-0 group-hover:opacity-70 transition-opacity shrink-0 text-zinc-500" />
+                                </a>
+
+                                {matchingAnalysis && (
+                                  <button
+                                    onClick={() => setSelectedRepoForModal(matchingAnalysis)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-800 transition-colors cursor-pointer ml-1"
+                                    title="View extracted features, entities, and APIs"
+                                  >
+                                    <Eye className="w-3 h-3 text-zinc-600" />
+                                    <span>Inspect</span>
+                                  </button>
+                                )}
+                              </div>
+
+                              {item.description && (
+                                <p className="text-xs text-zinc-500 mt-1 line-clamp-1 max-w-md">
+                                  {item.description}
+                                </p>
+                              )}
+
+                              {/* Feature and Entity Badges */}
+                              {matchingAnalysis && (
+                                <div className="flex items-center gap-1.5 mt-2 flex-wrap text-[11px]">
+                                  <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-medium border border-blue-100">
+                                    {matchingAnalysis.features.length} features
+                                  </span>
+                                  {matchingAnalysis.databaseEntities.length > 0 && (
+                                    <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 font-medium border border-amber-100">
+                                      {matchingAnalysis.databaseEntities.length} schema entities
+                                    </span>
                                   )}
-                                </button>
+                                  {matchingAnalysis.aiMl.hasAi && (
+                                    <span className="px-2 py-0.5 rounded bg-purple-50 text-purple-800 font-semibold border border-purple-100 flex items-center gap-0.5">
+                                      <Sparkles className="w-2.5 h-2.5 text-purple-600" />
+                                      AI/ML
+                                    </span>
+                                  )}
+                                  {matchingAnalysis.uniqueFeatures &&
+                                    matchingAnalysis.uniqueFeatures.length > 0 && (
+                                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold border border-emerald-100">
+                                        ★ {matchingAnalysis.uniqueFeatures.length} Unique
+                                      </span>
+                                    )}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* Deployment URL Column */}
+                            <td className="py-4 px-4 sm:px-6 align-top">
+                              <div className="flex items-center justify-between gap-3">
                                 <a
                                   href={depUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="p-1.5 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-black transition-colors border border-transparent hover:border-zinc-200"
-                                  title="Open live URL"
+                                  className="font-mono text-xs sm:text-sm font-medium text-emerald-700 hover:text-emerald-900 hover:underline transition-colors flex items-center gap-1.5 break-all"
                                 >
-                                  <ExternalLink className="w-4 h-4" />
+                                  <span>{displayCleanUrl(depUrl)}</span>
+                                  <ExternalLink className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
                                 </a>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
 
-              {/* Bottom Table Action Bar */}
-              <div className="px-4 sm:px-6 py-3.5 border-t border-zinc-200 bg-zinc-50 flex items-center justify-between text-xs text-zinc-600">
-                <span>
-                  Showing <strong className="text-zinc-900">{totalDeploymentsCount}</strong> live deployment link
-                  {totalDeploymentsCount === 1 ? "" : "s"} across <strong className="text-zinc-900">{results.length}</strong>{" "}
-                  repositor{results.length === 1 ? "y" : "ies"}
-                </span>
-                <button
-                  onClick={handleExportCsv}
-                  className="inline-flex items-center gap-1 text-black hover:underline font-semibold cursor-pointer"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download CSV</span>
-                </button>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    onClick={() => handleCopy(depUrl)}
+                                    className="p-1.5 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-black transition-colors cursor-pointer border border-transparent hover:border-zinc-200"
+                                    title="Copy live URL"
+                                  >
+                                    {copiedUrl === depUrl ? (
+                                      <Check className="w-4 h-4 text-black" />
+                                    ) : (
+                                      <Copy className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                  <a
+                                    href={depUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 rounded-md hover:bg-zinc-100 text-zinc-500 hover:text-black transition-colors border border-transparent hover:border-zinc-200"
+                                    title="Open live URL"
+                                  >
+                                    <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ));
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="px-4 sm:px-6 py-3.5 border-t border-zinc-200 bg-zinc-50 flex items-center justify-between text-xs text-zinc-600">
+                  <span>
+                    Showing <strong className="text-zinc-900">{totalDeploymentsCount}</strong> live deployment link
+                    {totalDeploymentsCount === 1 ? "" : "s"} across{" "}
+                    <strong className="text-zinc-900">{results.length}</strong> repositor
+                    {results.length === 1 ? "y" : "ies"}
+                  </span>
+                  <button
+                    onClick={handleExportDeploymentsCsv}
+                    className="inline-flex items-center gap-1 text-black hover:underline font-semibold cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download CSV</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : scanStatus === "finished" ? (
-            <div className="p-12 text-center border border-dashed border-zinc-300 rounded-xl bg-zinc-50 text-zinc-500">
-              <p className="text-base font-semibold text-zinc-800">
-                No active deployments found
-              </p>
-              <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto">
-                Scanned {scannedCount} repositories for &ldquo;{currentQuery}&rdquo;,
-                but none had verified publicly reachable deployments. Try another query or qualifier.
-              </p>
-            </div>
-          ) : scanStatus === "idle" ? (
-            <div className="p-12 text-center border border-dashed border-zinc-200 rounded-xl bg-zinc-50/50 text-zinc-400 flex flex-col items-center justify-center">
-              <div className="w-12 h-12 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-700 mb-3 shadow-xs">
-                <Search className="w-6 h-6" />
+            ) : scanStatus === "finished" ? (
+              <div className="p-12 text-center border border-dashed border-zinc-300 rounded-xl bg-zinc-50 text-zinc-500">
+                <p className="text-base font-semibold text-zinc-800">
+                  No active deployments found
+                </p>
+                <p className="text-xs text-zinc-500 mt-1 max-w-md mx-auto">
+                  Scanned {scannedCount} repositories for &ldquo;{currentQuery}&rdquo;,
+                  but none had verified publicly reachable deployments. Switch to the Features tab to view extracted code intelligence.
+                </p>
               </div>
-              <p className="text-sm font-semibold text-zinc-800">
-                Ready to find deployments
-              </p>
-              <p className="text-xs text-zinc-500 mt-1 max-w-sm">
-                Paste any GitHub repository search URL or query to scan for live websites on Vercel, Netlify, Render, GitHub Pages, and more.
-              </p>
-            </div>
-          ) : null}
-        </section>
+            ) : scanStatus === "idle" ? (
+              <div className="p-12 text-center border border-dashed border-zinc-200 rounded-2xl bg-zinc-50/50 text-zinc-400 flex flex-col items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-700 mb-3 shadow-xs">
+                  <Search className="w-6 h-6" />
+                </div>
+                <p className="text-sm font-semibold text-zinc-800">
+                  Ready to scan repositories
+                </p>
+                <p className="text-xs text-zinc-500 mt-1 max-w-sm">
+                  Paste any GitHub repository search URL or query to discover verified live deployments and analyze implemented product features automatically.
+                </p>
+              </div>
+            ) : null}
+          </section>
+        )}
+
+        {/* Tab 2: Features & Landscape View (Sections 10, 11, 12, 13, 14, 15) */}
+        {activeTab === "features" && (
+          <FeaturesView
+            landscape={landscape}
+            analyzedRepos={analyzedRepos}
+            onOpenRepoModal={(repo) => setSelectedRepoForModal(repo)}
+          />
+        )}
+
+        {/* Tab 3: Cross-Repository Comparison View (Section 9) */}
+        {activeTab === "comparison" && (
+          <ComparisonMatrixView
+            landscape={landscape}
+            analyzedRepos={analyzedRepos}
+            onOpenRepoModal={(repo) => setSelectedRepoForModal(repo)}
+          />
+        )}
       </main>
+
+      {/* Repository Detail Modal (Section 16) */}
+      <RepoDetailModal
+        repo={selectedRepoForModal}
+        onClose={() => setSelectedRepoForModal(null)}
+      />
     </div>
   );
 }
