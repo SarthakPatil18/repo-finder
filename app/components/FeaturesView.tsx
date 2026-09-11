@@ -15,6 +15,7 @@ import {
   ChevronUp,
   Download,
   Filter,
+  ArrowDown,
 } from "lucide-react";
 import {
   FeatureLandscape,
@@ -99,81 +100,135 @@ export function FeaturesView({
     URL.revokeObjectURL(url);
   };
 
+  const scrollToSection = (sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("ring-2", "ring-blue-500", "ring-offset-2", "transition-all", "duration-500");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-blue-500", "ring-offset-2");
+      }, 1800);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-blue-700 mb-1">
+        {/* Unique Features Card */}
+        <button
+          type="button"
+          onClick={() => scrollToSection("unique-features-section")}
+          className="p-4 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 hover:border-blue-300 hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col justify-between text-left cursor-pointer group"
+          title="Click to jump to Unique Features section"
+        >
+          <div className="flex items-center justify-between text-blue-700 mb-1 w-full">
             <span className="text-xs font-semibold uppercase tracking-wider">
               Unique Features
             </span>
-            <Sparkles className="w-4 h-4 text-blue-600" />
+            <Sparkles className="w-4 h-4 text-blue-600 group-hover:scale-110 transition-transform" />
           </div>
-          <div>
-            <div className="text-2xl font-bold text-blue-950">
-              {landscape.uniqueFeatures.length}
+          <div className="w-full">
+            <div className="text-2xl font-bold text-blue-950 flex items-center justify-between">
+              <span>{landscape.uniqueFeatures.length}</span>
+              <span className="text-[10px] text-blue-700 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <span>Jump</span>
+                <ArrowDown className="w-3 h-3" />
+              </span>
             </div>
             <p className="text-[11px] text-blue-700/80 mt-0.5">
               Found in exactly 1 project
             </p>
           </div>
-        </div>
+        </button>
 
-        <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/50 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-purple-700 mb-1">
+        {/* Rare Features Card */}
+        <button
+          type="button"
+          onClick={() => scrollToSection("rare-features-section")}
+          className="p-4 rounded-xl border border-purple-200 bg-purple-50/50 hover:bg-purple-100/60 hover:border-purple-300 hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col justify-between text-left cursor-pointer group"
+          title="Click to jump to Rare Features section"
+        >
+          <div className="flex items-center justify-between text-purple-700 mb-1 w-full">
             <span className="text-xs font-semibold uppercase tracking-wider">
               Rare Features
             </span>
-            <TrendingUp className="w-4 h-4 text-purple-600" />
+            <TrendingUp className="w-4 h-4 text-purple-600 group-hover:scale-110 transition-transform" />
           </div>
-          <div>
-            <div className="text-2xl font-bold text-purple-950">
-              {landscape.rareFeatures.length}
+          <div className="w-full">
+            <div className="text-2xl font-bold text-purple-950 flex items-center justify-between">
+              <span>{landscape.rareFeatures.length}</span>
+              <span className="text-[10px] text-purple-700 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <span>Jump</span>
+                <ArrowDown className="w-3 h-3" />
+              </span>
             </div>
             <p className="text-[11px] text-purple-700/80 mt-0.5">
               Uncommon (≤20% of projects)
             </p>
           </div>
-        </div>
+        </button>
 
-        <div className="p-4 rounded-xl border border-zinc-200 bg-zinc-50 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-zinc-700 mb-1">
+        {/* Table Stakes Card */}
+        <button
+          type="button"
+          onClick={() => scrollToSection("common-features-section")}
+          className="p-4 rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col justify-between text-left cursor-pointer group"
+          title="Click to jump to Table Stakes (Common Features) section"
+        >
+          <div className="flex items-center justify-between text-zinc-700 mb-1 w-full">
             <span className="text-xs font-semibold uppercase tracking-wider">
               Table Stakes
             </span>
-            <BarChart3 className="w-4 h-4 text-zinc-600" />
+            <BarChart3 className="w-4 h-4 text-zinc-600 group-hover:scale-110 transition-transform" />
           </div>
-          <div>
-            <div className="text-2xl font-bold text-zinc-950">
-              {landscape.commonFeatures.length}
+          <div className="w-full">
+            <div className="text-2xl font-bold text-zinc-950 flex items-center justify-between">
+              <span>{landscape.commonFeatures.length}</span>
+              <span className="text-[10px] text-zinc-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <span>Jump</span>
+                <ArrowDown className="w-3 h-3" />
+              </span>
             </div>
             <p className="text-[11px] text-zinc-500 mt-0.5">
               Common baseline (&gt;50%)
             </p>
           </div>
-        </div>
+        </button>
 
-        <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-amber-700 mb-1">
+        {/* Potential Gaps Card */}
+        <button
+          type="button"
+          onClick={() => scrollToSection("potential-gaps-section")}
+          className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 hover:bg-amber-100/60 hover:border-amber-300 hover:shadow-md hover:-translate-y-0.5 transition-all flex flex-col justify-between text-left cursor-pointer group"
+          title="Click to jump to Potential Gaps section"
+        >
+          <div className="flex items-center justify-between text-amber-700 mb-1 w-full">
             <span className="text-xs font-semibold uppercase tracking-wider">
               Potential Gaps
             </span>
-            <HelpCircle className="w-4 h-4 text-amber-600" />
+            <HelpCircle className="w-4 h-4 text-amber-600 group-hover:scale-110 transition-transform" />
           </div>
-          <div>
-            <div className="text-2xl font-bold text-amber-950">
-              {landscape.potentialGaps.length}
+          <div className="w-full">
+            <div className="text-2xl font-bold text-amber-950 flex items-center justify-between">
+              <span>{landscape.potentialGaps.length}</span>
+              <span className="text-[10px] text-amber-800 font-semibold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <span>Jump</span>
+                <ArrowDown className="w-3 h-3" />
+              </span>
             </div>
             <p className="text-[11px] text-amber-800/80 mt-0.5">
               Differentiation opportunities
             </p>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* 1. Dedicated Unique Features Summary (Section 10 & 14) */}
-      <section className="border border-zinc-200 rounded-xl overflow-hidden bg-white shadow-xs">
+      <section
+        id="unique-features-section"
+        className="scroll-mt-6 border border-zinc-200 rounded-xl overflow-hidden bg-white shadow-xs"
+      >
         <div className="px-5 py-4 bg-zinc-50/90 border-b border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
@@ -199,6 +254,7 @@ export function FeaturesView({
               <thead>
                 <tr className="border-b border-zinc-200 bg-zinc-50/50 text-zinc-600 font-semibold uppercase tracking-wider">
                   <th className="py-3 px-4 w-1/3">Feature</th>
+                  <th className="py-3 px-4">Category</th>
                   <th className="py-3 px-4 w-1/4">Found In (Repository)</th>
                   <th className="py-3 px-4 w-1/4">Live Deployment</th>
                   <th className="py-3 px-4 w-1/6">Evidence</th>
@@ -206,17 +262,27 @@ export function FeaturesView({
               </thead>
               <tbody className="divide-y divide-zinc-200">
                 {landscape.uniqueFeatures.map((u, i) => {
+                  const cleanUrl = u.repoUrl.replace(/\/+$/, "").toLowerCase();
                   const matchingRepoObj = analyzedRepos.find(
-                    (r) => r.repoUrl === u.repoUrl
+                    (r) => r.repoUrl.replace(/\/+$/, "").toLowerCase() === cleanUrl
                   );
+
                   return (
-                    <tr key={i} className="hover:bg-zinc-50/80 transition-colors">
-                      {/* Feature Name & Category */}
+                    <tr
+                      key={i}
+                      className="hover:bg-zinc-50/80 transition-colors group"
+                    >
+                      {/* Feature Name */}
+                      <td className="py-3.5 px-4 align-top font-semibold text-zinc-950">
+                        <div className="flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span>{u.featureName}</span>
+                        </div>
+                      </td>
+
+                      {/* Category */}
                       <td className="py-3.5 px-4 align-top">
-                        <span className="font-semibold text-zinc-900 block text-xs">
-                          {u.featureName}
-                        </span>
-                        <span className="inline-block mt-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-100 text-zinc-600 font-medium">
+                        <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
                           {u.category}
                         </span>
                       </td>
@@ -224,21 +290,37 @@ export function FeaturesView({
                       {/* Repository Link */}
                       <td className="py-3.5 px-4 align-top">
                         <div className="flex items-center gap-1.5 flex-wrap">
+                          {matchingRepoObj ? (
+                            <button
+                              onClick={() => onOpenRepoModal(matchingRepoObj)}
+                              className="font-mono text-xs text-zinc-950 hover:text-blue-600 hover:underline font-semibold inline-flex items-center gap-1 text-left cursor-pointer break-all"
+                              title="View repository details"
+                            >
+                              <span>{u.repoName}</span>
+                            </button>
+                          ) : (
+                            <span className="font-mono text-xs text-zinc-950 font-semibold break-all">
+                              {u.repoName}
+                            </span>
+                          )}
+
                           <a
                             href={u.repoUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-mono text-zinc-900 hover:text-black hover:underline font-medium inline-flex items-center gap-1 break-all"
+                            className="p-1 rounded text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+                            title="Open on GitHub"
                           >
-                            <span>{u.repoName}</span>
-                            <ExternalLink className="w-3 h-3 shrink-0 text-zinc-400" />
+                            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                           </a>
+
                           {matchingRepoObj && (
                             <button
                               onClick={() => onOpenRepoModal(matchingRepoObj)}
-                              className="text-[10px] text-blue-600 hover:underline font-medium cursor-pointer"
+                              className="text-[11px] px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-medium cursor-pointer border border-zinc-200 shadow-2xs ml-1"
+                              title="View full repository details"
                             >
-                              [Details]
+                              View Details
                             </button>
                           )}
                         </div>
@@ -279,7 +361,10 @@ export function FeaturesView({
       {/* 2. Rare Features & Common Features (2 Columns) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Rare Features (Section 11) */}
-        <section className="border border-purple-200/80 rounded-xl bg-white p-5 shadow-xs flex flex-col justify-between">
+        <section
+          id="rare-features-section"
+          className="scroll-mt-6 border border-purple-200/80 rounded-xl bg-white p-5 shadow-xs flex flex-col justify-between"
+        >
           <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-bold text-purple-950 flex items-center gap-1.5">
@@ -334,7 +419,10 @@ export function FeaturesView({
         </section>
 
         {/* Most Common Features (Section 12) */}
-        <section className="border border-zinc-200 rounded-xl bg-white p-5 shadow-xs flex flex-col justify-between">
+        <section
+          id="common-features-section"
+          className="scroll-mt-6 border border-zinc-200 rounded-xl bg-white p-5 shadow-xs flex flex-col justify-between"
+        >
           <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-1.5">
@@ -376,7 +464,10 @@ export function FeaturesView({
       </div>
 
       {/* 3. "What Is Missing?" Potential Gaps (Section 15) */}
-      <section className="border border-amber-200 rounded-xl bg-amber-50/40 p-5 shadow-xs">
+      <section
+        id="potential-gaps-section"
+        className="scroll-mt-6 border border-amber-200 rounded-xl bg-amber-50/40 p-5 shadow-xs"
+      >
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 shrink-0 mt-0.5">
             <HelpCircle className="w-4 h-4" />
@@ -576,35 +667,51 @@ export function FeaturesView({
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         {feat.repos.map((r, ri) => {
+                          const cleanUrl = r.repoUrl.replace(/\/+$/, "").toLowerCase();
                           const rObj = analyzedRepos.find(
-                            (x) => x.repoUrl === r.repoUrl
+                            (x) => x.repoUrl.replace(/\/+$/, "").toLowerCase() === cleanUrl
                           );
                           return (
                             <div
                               key={ri}
-                              className="p-2.5 bg-white rounded border border-zinc-200 flex flex-col justify-between"
+                              className="p-2.5 bg-white rounded-lg border border-zinc-200 flex flex-col justify-between shadow-2xs"
                             >
-                              <div className="flex items-center justify-between">
-                                <a
-                                  href={r.repoUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="font-mono font-medium text-zinc-900 hover:underline inline-flex items-center gap-1"
-                                >
-                                  <span>{r.repoName}</span>
-                                  <ExternalLink className="w-3 h-3 text-zinc-400" />
-                                </a>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  {rObj ? (
+                                    <button
+                                      onClick={() => onOpenRepoModal(rObj)}
+                                      className="font-mono font-semibold text-xs text-zinc-950 hover:text-blue-600 hover:underline text-left cursor-pointer"
+                                      title="View repository details"
+                                    >
+                                      <span>{r.repoName}</span>
+                                    </button>
+                                  ) : (
+                                    <span className="font-mono font-semibold text-xs text-zinc-950">
+                                      {r.repoName}
+                                    </span>
+                                  )}
+                                  <a
+                                    href={r.repoUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-0.5 rounded text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+                                    title="Open on GitHub"
+                                  >
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                </div>
                                 {rObj && (
                                   <button
                                     onClick={() => onOpenRepoModal(rObj)}
-                                    className="text-[11px] text-blue-600 hover:underline cursor-pointer"
+                                    className="text-[11px] px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium cursor-pointer border border-zinc-200 shadow-2xs"
                                   >
-                                    Inspect
+                                    View Details
                                   </button>
                                 )}
                               </div>
-                              <p className="text-[11px] text-zinc-500 mt-1 leading-relaxed line-clamp-2">
-                                <span className="font-medium text-zinc-700">Evidence: </span>
+                              <p className="text-[11px] text-zinc-600 mt-1.5 leading-relaxed">
+                                <span className="font-medium text-zinc-800">Evidence: </span>
                                 {r.evidence}
                               </p>
                             </div>

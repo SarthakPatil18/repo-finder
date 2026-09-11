@@ -138,25 +138,39 @@ export function ComparisonMatrixView({
                   Feature
                 </th>
                 {landscape.matrix.repos.map((repo, i) => {
-                  const rObj = analyzedRepos.find((r) => r.repoUrl === repo.repoUrl);
+                  const cleanUrl = repo.repoUrl.replace(/\/+$/, "").toLowerCase();
+                  const rObj = analyzedRepos.find(
+                    (r) => r.repoUrl.replace(/\/+$/, "").toLowerCase() === cleanUrl
+                  );
                   return (
                     <th
                       key={i}
                       className="py-3 px-3 min-w-[150px] font-semibold text-zinc-800 text-center border-l border-zinc-200"
                     >
-                      <div className="flex flex-col items-center">
-                        <span
-                          className="font-mono text-xs truncate max-w-[140px] block"
-                          title={repo.repoName}
-                        >
-                          {repo.repoName.split("/")[1] || repo.repoName}
-                        </span>
+                      <div className="flex flex-col items-center gap-1">
+                        {rObj ? (
+                          <button
+                            onClick={() => onOpenRepoModal(rObj)}
+                            className="font-mono text-xs truncate max-w-[140px] text-zinc-950 hover:text-blue-600 hover:underline font-semibold cursor-pointer"
+                            title={`View details for ${repo.repoName}`}
+                          >
+                            {repo.repoName.split("/")[1] || repo.repoName}
+                          </button>
+                        ) : (
+                          <span
+                            className="font-mono text-xs truncate max-w-[140px] block"
+                            title={repo.repoName}
+                          >
+                            {repo.repoName.split("/")[1] || repo.repoName}
+                          </span>
+                        )}
                         {rObj && (
                           <button
                             onClick={() => onOpenRepoModal(rObj)}
-                            className="text-[10px] text-blue-600 hover:underline cursor-pointer mt-0.5"
+                            className="text-[10px] px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium cursor-pointer border border-zinc-200 shadow-2xs"
+                            title="Open repository details"
                           >
-                            Inspect
+                            View Details
                           </button>
                         )}
                       </div>
